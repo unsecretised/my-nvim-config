@@ -26,24 +26,24 @@ return {
 	}
     end,
   },
-  {
-    "williamboman/mason-lspconfig.nvim",
-    dependencies = { "williamboman/mason.nvim" },
-    config = function()
-      require("mason-lspconfig").setup({
-        ensure_installed = {
-          "pyright",
-          "rust_analyzer",
-          "html",
-          "cssls",
-          "gopls",
-          "zls",
-          -- ⚠️ don't add "gleam" here, mason doesn't know it
-        },
-        automatic_installation = true,
-      })
-    end,
-  },
+{
+  "williamboman/mason-lspconfig.nvim",
+  dependencies = { "williamboman/mason.nvim" },
+  config = function()
+    require("mason-lspconfig").setup({
+      ensure_installed = {
+        "pyright",
+        "rust_analyzer",
+        "html",
+        "tailwindcss",      -- for Tailwind utility class completions
+        "gopls",
+        "zls",
+        "ts_ls",
+      },
+      automatic_installation = true,
+    })
+  end,
+},
   {
     "neovim/nvim-lspconfig",
     config = function()
@@ -83,12 +83,66 @@ return {
       end
 
       -- Python
-      vim.lsp.config("pyright", {
-        capabilities = capabilities,
-        on_attach = on_attach,
-      })
+ -- Modern Python LSP setup (Neovim 0.11+)
+local capabilities = vim.lsp.protocol.make_client_capabilities()
+local ok, cmp_nvim_lsp = pcall(require, "cmp_nvim_lsp")
+if ok then
+  capabilities = cmp_nvim_lsp.default_capabilities(capabilities)
+end
 
-      -- Rust
+local function python_on_attach(client, bufnr)
+  local bufmap = function(mode, lhs, rhs)
+    vim.keymap.set(mode, lhs, rhs, { buffer = bufnr, noremap = true, silent = true })
+  end
+
+  bufmap("n", "gd", vim.lsp.buf.definition)
+  bufmap("n", "K", vim.lsp.buf.hover)
+  bufmap("n", "gr", vim.lsp.buf.references)
+  bufmap("n", "<leader>rn", vim.lsp.buf.rename)
+  bufmap("n", "<leader>ca", vim.lsp.buf.code_action)
+
+  -- Auto-format on save if supported
+  if client.server_capabilities.documentFormattingProvider then
+    vim.api.nvim_create_autocmd("BufWritePre", {
+      buffer = bufnr,
+      callback = function()
+        vim.lsp.buf.format({ async = false })
+      end,
+    })
+  end
+end
+
+-- Define the Pyright LSP using the new framework
+vim.lsp.config("pyright", {
+  cmd = { "pyright-langserver", "--stdio" },
+  capabilities = capabilities,
+  on_attach = python_on_attach,
+  root_markers = { "pyproject.toml", "setup.py", "setup.cfg", "requirements.txt", ".git" },
+  settings = {
+    python = {
+      analysis = {
+        autoImportCompletions = true,
+        autoSearchPaths = true,
+        diagnosticMode = "workspace",
+        useLibraryCodeForTypes = true,
+        typeCheckingMode = "basic",
+      },
+    },
+  },
+})
+
+-- Optionally add Ruff LSP (for linting/formatting)
+if vim.fn.executable("ruff-lsp") == 1 then
+  vim.lsp.config("ruff_lsp", {
+    cmd = { "ruff-lsp" },
+    capabilities = capabilities,
+    on_attach = function(client, bufnr)
+      python_on_attach(client, bufnr)
+      client.server_capabilities.hoverProvider = false
+      client.server_capabilities.completionProvider = false
+    end,
+  })
+end     -- Rust
       vim.lsp.config("rust_analyzer", {
         capabilities = capabilities,
         on_attach = on_attach,
@@ -124,6 +178,11 @@ return {
         on_attach = on_attach,
       })
 
+vim.lsp.config("ts_ls", {
+  capabilities = capabilities,
+  on_attach = on_attach,
+}
+)
       -- Gleam (manual setup)
 local lspconfig = require("lspconfig")
       local configs = require("lspconfig.configs")
@@ -144,4 +203,14 @@ local lspconfig = require("lspconfig")
       }
     end,
   },
+
+-- Tailwind CSS
+vim.lsp.config("tailwindcss", {
+  capabilities = capabilities,
+  on_attach = on_attach,
+  filetypes = {
+    "html", "css", "javascript", "typescriptreact", "javascriptreact",
+    "vue", "svelte", "heex", "eelixir",
+  },
+})
 }

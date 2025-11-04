@@ -53,7 +53,7 @@ return {
     end
 
     local ollama = Terminal:new({
-            cmd = "ollama run deepseek-r1:8b",
+            cmd = "ollama run granite4",
             hidden=true,
             direction = "float",
             float_opts = {
