@@ -58,15 +58,21 @@ return {
         severity_sort = true,
       })
 
-      vim.api.nvim_create_autocmd("LspAttach", {
-        callback = function(args)
-          local client = vim.lsp.get_client_by_id(args.data.client_id)
-          if client and client.server_capabilities.inlayHintProvider then
-            vim.lsp.inlay_hint.enable(true, { bufnr = args.buf })
-          end
-        end,
-      })
+vim.api.nvim_create_autocmd("LspAttach", {
+  callback = function(args)
+    local client = vim.lsp.get_client_by_id(args.data.client_id)
+    if not client or not client.server_capabilities.inlayHintProvider then
+      return
+    end
 
+    -- Disable inlay hints for grammar server(s)
+    if client.name == "ltex" or client.name == "ltex_ls" then
+      vim.lsp.inlay_hint.enable(false, { bufnr = args.buf })
+    else
+      vim.lsp.inlay_hint.enable(true, { bufnr = args.buf })
+    end
+  end,
+})
       local capabilities = vim.lsp.protocol.make_client_capabilities()
       local ok, cmp_nvim_lsp = pcall(require, "cmp_nvim_lsp")
       if ok then
